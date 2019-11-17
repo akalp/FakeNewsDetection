@@ -4,21 +4,21 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer, EN
 
 
 def read():
-    df = pd.read_csv("./data/fake_news_train.csv")
-    df = df.drop(df[df["title"] == df["text"]].index)
-    df["title"] = df["title"].fillna("-NO TITLE-")
-    df["author"] = df["author"].fillna("-NO AUTHOR-")
-    df["text"] = df["text"].fillna("-NO TEXT-")
-    df["all_text"] = df["title"] + " " + df["text"]
-    df = df.loc[:, ("id", "all_text", "label")]
+    # df = pd.read_csv("./data/fake_news_train.csv")
+    df = pd.read_csv("./output/4max.csv")
+    # df["title"] = df["title"].fillna("-NO TITLE-")
+    # df["author"] = df["author"].fillna("-NO AUTHOR-")
+    # df["text"] = df["text"].fillna("-NO TEXT-")
+    # df["all_text"] = df["title"] + " " + df["text"]
+    # df = df.loc[:, ("id", "all_text", "label")]
     return df
 
 
 def train_validation_split(df, train_ratio):
     train_size = round(df.shape[0] * train_ratio)
-    train = df.iloc[:train_size, :].groupby('label')
+    _train = df.iloc[:train_size, :].groupby('label')
     validation = df.iloc[train_size:, :]
-    return train.get_group(0), train.get_group(1), validation
+    return _train.get_group(0), _train.get_group(1), validation
 
 
 def tfidf_dict(data, type, stopword_bool):
@@ -45,11 +45,11 @@ def train2(_real, _fake, stopword_bool):
     return real_uni_dict, real_bi_dict, fake_uni_dict, fake_bi_dict
 
 
-def count_dict(data, type, stopword_bool):
+def count_dict(data, _type, stopword_bool):
     vectorizer = CountVectorizer(ngram_range=(1, 1),
                                  stop_words=ENGLISH_STOP_WORDS) if stopword_bool else CountVectorizer(
         ngram_range=(1, 1))
-    if type is "bigram":
+    if _type is "bigram":
         vectorizer = CountVectorizer(ngram_range=(2, 2),
                                      stop_words=ENGLISH_STOP_WORDS) if stopword_bool else CountVectorizer(
             ngram_range=(2, 2))
@@ -91,8 +91,6 @@ def part_1(_real, _fake):
 
 
 def classify(_real_freq, _fake_freq, _val, real_news_count, fake_news_count, type):
-    import string
-
     # KAGGLE (return the list)
     # pred_list = []
 
@@ -108,10 +106,9 @@ def classify(_real_freq, _fake_freq, _val, real_news_count, fake_news_count, typ
     for index, row in _val.iterrows():
         r_pred, f_pred = np.log(real_prob), np.log(fake_prob)
 
-        tokens = row["all_text"].lower().translate(str.maketrans('', '', string.punctuation)).split()
-        for i in range(len(tokens) - n + 1):
-            token = " ".join(tokens[i:i + n])
-
+        tokens = CountVectorizer(ngram_range=(n,n))
+        tokens.fit_transform([row["all_text"]])
+        for token in tokens.get_feature_names():
             r_count = _real_freq[token] if token in _real_freq else 0
             f_count = _fake_freq[token] if token in _fake_freq else 0
 
@@ -135,7 +132,7 @@ def cal_accuracy(correct, total):
 
 def main():
     data_df = read()
-    real, fake, validation = train_validation_split(data_df, 0.9)
+    real, fake, validation = train_validation_split(df=data_df, train_ratio=0.9)
 
 #%% KAGGLE
     # real_uni, real_bi, fake_uni, fake_bi = train(real, fake, False)
@@ -152,42 +149,51 @@ def main():
     # df = pd.DataFrame(l, index=validation.id, columns=["label"])
     # df.to_csv("./output/kaggle.csv")
 
+#%% test
+
+    # real_uni, real_bi, fake_uni, fake_bi = train(real, fake, False)
+    #
+    # uni = cal_accuracy(classify(real_uni, fake_uni, validation, real.shape[0], fake.shape[0], "unigram"),
+    #                    validation.shape[0])
+    #
+    # print(uni)
 
 #%% homework
     # part_1(real, fake)
-
+    #
     real_uni, real_bi, fake_uni, fake_bi = train(real, fake, False)
+
+    uni = cal_accuracy(classify(real_uni, fake_uni, validation, real.shape[0], fake.shape[0], "unigram"),
+                       validation.shape[0])
+
+    bi = cal_accuracy(classify(real_uni, fake_uni, validation, real.shape[0], fake.shape[0], "bigram"),
+                      validation.shape[0])
+
+    print("CountVectorizer w/Stopwords\nAccuracy for unigram: {}\nAccuracy for bigram: {}".format(uni, bi))
+
+    real_uni, real_bi, fake_uni, fake_bi = train2(real, fake, False)
 
     uni = cal_accuracy(classify(real_uni, fake_uni, validation, real.shape[0], fake.shape[0], "unigram"),
                        validation.shape[0])
     bi = cal_accuracy(classify(real_uni, fake_uni, validation, real.shape[0], fake.shape[0], "bigram"),
                       validation.shape[0])
 
-    print("CountVectorizer w/Stopwords\nAccuracy for unigram: {}\nAccuracy for bigram: {}".format(uni, bi))
-    # 
-    # real_uni, real_bi, fake_uni, fake_bi = train2(real, fake, False)
-    #
-    # uni = cal_accuracy(classify(real_uni, fake_uni, validation, real.shape[0], fake.shape[0], "unigram"),
-    #                    validation.shape[0])
-    # bi = cal_accuracy(classify(real_uni, fake_uni, validation, real.shape[0], fake.shape[0], "bigram"),
-    #                   validation.shape[0])
-    #
-    # print("TfidfVectorizer w/Stopwords\nAccuracy for unigram: {}\nAccuracy for bigram: {}".format(uni, bi))
-    #
-    # real_uni, real_bi, fake_uni, fake_bi = train(real, fake, True)
-    #
-    # uni = cal_accuracy(classify(real_uni, fake_uni, validation, real.shape[0], fake.shape[0], "unigram"),
-    #                    validation.shape[0])
-    # bi = cal_accuracy(classify(real_uni, fake_uni, validation, real.shape[0], fake.shape[0], "bigram"),
-    #                   validation.shape[0])
-    #
-    # print("CountVectorizer wo/Stopwords\nAccuracy for unigram: {}\nAccuracy for bigram: {}".format(uni, bi))
-    #
-    # real_uni, real_bi, fake_uni, fake_bi = train2(real, fake, True)
-    #
-    # uni = cal_accuracy(classify(real_uni, fake_uni, validation, real.shape[0], fake.shape[0], "unigram"),
-    #                    validation.shape[0])
-    # bi = cal_accuracy(classify(real_uni, fake_uni, validation, real.shape[0], fake.shape[0], "bigram"),
-    #                   validation.shape[0])
-    #
-    # print("TfidfVectorizer wo/Stopwords\nAccuracy for unigram: {}\nAccuracy for bigram: {}".format(uni, bi))
+    print("TfidfVectorizer w/Stopwords\nAccuracy for unigram: {}\nAccuracy for bigram: {}".format(uni, bi))
+
+    real_uni, real_bi, fake_uni, fake_bi = train(real, fake, True)
+
+    uni = cal_accuracy(classify(real_uni, fake_uni, validation, real.shape[0], fake.shape[0], "unigram"),
+                       validation.shape[0])
+    bi = cal_accuracy(classify(real_uni, fake_uni, validation, real.shape[0], fake.shape[0], "bigram"),
+                      validation.shape[0])
+
+    print("CountVectorizer wo/Stopwords\nAccuracy for unigram: {}\nAccuracy for bigram: {}".format(uni, bi))
+
+    real_uni, real_bi, fake_uni, fake_bi = train2(real, fake, True)
+
+    uni = cal_accuracy(classify(real_uni, fake_uni, validation, real.shape[0], fake.shape[0], "unigram"),
+                       validation.shape[0])
+    bi = cal_accuracy(classify(real_uni, fake_uni, validation, real.shape[0], fake.shape[0], "bigram"),
+                      validation.shape[0])
+
+    print("TfidfVectorizer wo/Stopwords\nAccuracy for unigram: {}\nAccuracy for bigram: {}".format(uni, bi))
